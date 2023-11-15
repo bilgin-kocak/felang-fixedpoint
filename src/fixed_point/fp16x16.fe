@@ -26,6 +26,7 @@ pub trait FixedTrait {
     fn floor(self) -> Self;
     fn ceil(self) -> Self;
     fn round(self) -> Self;
+    fn sign(self) -> bool;
     fn negate(self) -> Self;
 
     fn add(self, other: Self) -> Self;
@@ -39,6 +40,10 @@ pub trait FixedTrait {
     fn le(self, other: Self) -> bool;
     fn lt(self, other: Self) -> bool;
     fn ne(self, other: Self) -> bool;
+
+    fn rem(self, other: Self) -> Self;
+
+    fn sqrt(self) -> Self;
     // fn exp(self) -> Self;
     // fn log2(self) -> Self;
 }
@@ -200,6 +205,67 @@ impl FixedTrait for FP16x16 {
 
   fn ne(self, other: FP16x16) -> bool {
     return self.mag != other.mag or self.sign != other.sign
+  }
+
+  fn sign(self) -> bool {
+    return self.sign
+  }
+
+  fn rem(self, other: FP16x16) -> FP16x16 {
+    let (a, b): (u32, u32) = u32_divmod(self.mag, other.mag)
+    return FP16x16(mag: b, sign: self.sign)
+  }
+
+  // Calculates the square root of a FP16x16 point value
+  // self must be positive
+  fn sqrt(self) -> FP16x16{
+    assert self.sign == false // sqrt is only defined for positive numbers
+
+    if self.mag == ONE {
+      return FP16x16(mag: ONE, sign: false)
+    } else if self.mag < ONE {
+      let mut res: u32 = 0
+      let mut rem: u32 = self.mag
+      let mut bit: u32 = ONE << 30 // The second-to-top bit is set: 1 << 30 for 32 bits
+
+      // "bit" starts at the highest power of four <= the argument.
+      while bit > rem {
+        bit = bit >> 2
+      }
+
+      while bit != 0 {
+        if rem >= res + bit {
+          rem = rem - (res + bit)
+          res = (res >> 1) + bit
+        } else {
+          res = res >> 1
+        }
+        bit = bit >> 2
+      }
+
+      return FP16x16(mag: res, sign: false)
+    } else {
+      let mut res: u32 = 0
+      let mut rem: u32 = self.mag
+      let mut bit: u32 = ONE << 30 // The second-to-top bit is set: 1 << 30 for 32 bits
+
+      // "bit" starts at the highest power of four <= the argument.
+      while bit > rem {
+        bit = bit >> 2
+      }
+
+      while bit != 0 {
+        if rem >= res + bit {
+          rem = rem - (res + bit)
+          res = (res >> 1) + bit
+        } else {
+          res = res >> 1
+        }
+        bit = bit >> 2
+      }
+
+      return FP16x16(mag: res, sign: false)
+    }
   }
 
   // fn log2(self) -> Self {
