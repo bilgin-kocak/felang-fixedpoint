@@ -1,0 +1,6 @@
+name = "math"
+version = "1.0"
+description = "Math Library for FE Language"
+homepage = "https://github.com/"
+
+[dependencies]

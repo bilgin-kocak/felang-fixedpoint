@@ -1,0 +1,128 @@
+// use helpers::u32_divmod
+
+// Fixed point 16.16
+// 16 bits for the integer part, 16 bits for the fractional part
+// 1 bit for the sign
+// 
+
+
+pub struct FP16x16 {
+    pub mag: u32
+    pub sign: bool
+}
+
+const TWO: u32 = 131072 // 2 ** 17
+const ONE: u32 = 65536 // 2 ** 16
+const HALF: u32 = 32768 // 2 ** 15
+const MAX: u32 = 2147483648 // 2 ** 31
+
+
+pub trait FixedTrait {
+    fn new(mag: u32, sign: bool) -> Self;
+    fn new_unscaled(mag: u32, sign: bool) -> Self;
+    fn one() -> Self;
+    fn convert_to_u32(self) -> u32;
+    fn abs(self) -> Self;
+    fn floor(self) -> Self;
+    fn ceil(self) -> Self;
+    fn round(self) -> Self;
+
+    fn add(self, other: Self) -> Self;
+    fn sub(self, other: Self) -> Self;
+    fn mul(self, other: Self) -> Self;
+    fn div(self, other: Self) -> Self;
+    // fn exp(self) -> Self;
+    // fn log2(self) -> Self;
+}
+
+impl FixedTrait for FP16x16 {
+  fn new(mag: u32, sign: bool) -> Self {
+    return FP16x16(mag: mag, sign: sign)
+  }
+  fn new_unscaled(mag: u32, sign: bool) -> Self {
+    return FP16x16(mag: mag << 16, sign: sign)
+  }
+  fn one() -> Self {
+    return FP16x16(mag: ONE, sign: false)
+  }
+  fn convert_to_u32(self) -> u32 {
+    return self.mag >> 16
+  }
+  fn abs(self) -> Self {
+    return FP16x16(mag: self.mag, sign: true)
+  }
+  // You will get floor to the nearest integer
+  fn floor(self) -> Self {
+    if self.sign {
+      return FP16x16(mag: self.mag & 0xFFFF0000 + ONE, sign: self.sign)
+    } else {
+      return FP16x16(mag: self.mag & 0xFFFF0000, sign: self.sign)
+    }
+  }
+  fn ceil(self) -> Self {
+    if self.sign {
+      return FP16x16(mag: self.mag & 0xFFFF0000, sign: self.sign)
+    } else {
+      return FP16x16(mag: self.mag & 0xFFFF0000 + ONE, sign: self.sign)
+    }
+  }
+  fn round(self) -> Self {
+    let value: u32 = self.mag & 0x00008000
+    if value == 0{
+      return FP16x16(mag: self.mag & 0xFFFF0000, sign: self.sign)
+    } else {
+      return FP16x16(mag: self.mag & 0xFFFF0000 + ONE, sign: self.sign)
+    }
+  }
+
+  // fn log2(self) -> Self {
+  //   assert self.sign == false // log2 is only defined for positive numbers
+
+  //   if self.mag == ONE {
+  //     return FP16x16(mag: 0, sign: false)
+  //   } else if self.mag < ONE {
+
+  //   }
+  // }
+}
+
+
+// impl FixedTrait for FP16x16 {
+//     fn new(mag: u32, sign: bool) -> Self {
+//         FP16x16 {
+//             mag: mag,
+//             sign: sign
+//         }
+//     }
+//     fn abs(self) -> Self {
+//         FP16x16 {
+//             mag: self.mag,
+//             sign: true
+//         }
+//     }
+
+//     fn floor(self) -> Self {
+//         FP16x16 {
+//             mag: self.mag & 0xFFFF0000,
+//             sign: self.sign
+//         }
+//     }
+
+//     fn ceil(self) -> Self {
+//         FP16x16 {
+//             mag: self.mag & 0xFFFF0000,
+//             sign: self.sign
+//         }
+//     }
+
+//     fn round(self) -> Self {
+//         FP16x16 {
+//             mag: self.mag & 0xFFFF0000,
+//             sign: self.sign
+//         }
+//     }
+// }
+
+pub fn u32_divmod(a: u32, b: u32) -> (u32, u32) {
+    return (a / b, a % b)
+}
