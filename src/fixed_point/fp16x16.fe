@@ -1,4 +1,4 @@
-// use helpers::u32_divmod
+// use utils::xor
 
 // Fixed point 16.16
 // 16 bits for the integer part, 16 bits for the fractional part
@@ -26,11 +26,19 @@ pub trait FixedTrait {
     fn floor(self) -> Self;
     fn ceil(self) -> Self;
     fn round(self) -> Self;
+    fn negate(self) -> Self;
 
     fn add(self, other: Self) -> Self;
     fn sub(self, other: Self) -> Self;
     fn mul(self, other: Self) -> Self;
     fn div(self, other: Self) -> Self;
+
+    fn eq(self, other: Self) -> bool;
+    fn ge(self, other: Self) -> bool;
+    fn gt(self, other: Self) -> bool;
+    fn le(self, other: Self) -> bool;
+    fn lt(self, other: Self) -> bool;
+    fn ne(self, other: Self) -> bool;
     // fn exp(self) -> Self;
     // fn log2(self) -> Self;
 }
@@ -75,6 +83,125 @@ impl FixedTrait for FP16x16 {
     }
   }
 
+  fn add(self, _ other: FP16x16) -> Self {
+    if self.sign == other.sign {
+      return FP16x16(mag: self.mag + other.mag, sign: self.sign)
+    } else {
+      if self.mag > other.mag {
+        return FP16x16(mag: self.mag - other.mag, sign: self.sign)
+      } else {
+        return FP16x16(mag: other.mag - self.mag, sign: other.sign)
+      }
+    }
+  }
+
+  fn negate(self) -> Self {
+    return FP16x16(mag: self.mag, sign: not self.sign)
+  }
+
+  fn sub(self, _ other: FP16x16) -> Self {
+    return self.add(other.negate())
+  }
+
+  fn mul(self, _ other: FP16x16) -> Self {
+    // let res: u64 = u32_wide_mul(self.mag, other.mag)
+    let first : u32 = self.mag / ONE
+    // Use wide mul for better precision
+    let res: u32 = first * other.mag
+    let sign: bool = xor(self.sign, other.sign)
+
+    return FP16x16(mag: res, sign: sign)
+  }
+
+  // fn mul(self, other: FP16x16) -> {
+  //   // Make sure that the result is not too big
+  //   assert self.mag < MAX
+  //   assert other.mag < MAX
+
+  //   let (a, b) = u32_divmod(self.mag, ONE)
+  //   let (c, d) = u32_divmod(other.mag, ONE)
+
+  //   let ac = a * c
+  //   let ad = a * d
+  //   let bc = b * c
+  //   let bd = b * d
+
+  //   let adbc = ad + bc
+  //   let adbc_shifted = adbc >> 16
+  //   let adbc_shifted = adbc_shifted + HALF 
+  //   let adbc_shifted = adbc_shifted >> 16
+
+  //   let result = ac + adbc_shifted
+
+  //   return FP16x16(mag: result, sign: self.sign ^ other.sign)
+  // }
+
+  fn div(self, other: FP16x16) -> FP16x16 {
+    // Use wide mul for better precision
+    let first : u32 = self.mag / ONE
+    // Use wide mul for better precision
+    let res: u32 = first / other.mag
+    let sign: bool = xor(self.sign, other.sign)
+
+    return FP16x16(mag: res, sign: sign)
+  }
+
+  fn eq(self, other: FP16x16) -> bool {
+    return self.mag == other.mag and self.sign == other.sign
+  }
+
+  fn ge(self, other: FP16x16) -> bool {
+    if self.sign == false and other.sign == true {
+      return true
+    } else if self.sign == true and other.sign == false {
+      return false
+    } else if self.sign == false and other.sign == false {
+      return self.mag >= other.mag
+    } else {
+      return self.mag <= other.mag
+    }
+  }
+
+  fn gt(self, other: FP16x16) -> bool {
+    if self.sign == false and other.sign == true {
+      return true
+    } else if self.sign == true and other.sign == false {
+      return false
+    } else if self.sign == false and other.sign == false {
+      return self.mag > other.mag
+    } else {
+      return self.mag < other.mag
+    }
+  }
+
+  fn le(self, other: FP16x16) -> bool {
+    if self.sign == false and other.sign == true {
+      return false
+    } else if self.sign == true and other.sign == false {
+      return true
+    } else if self.sign == false and other.sign == false {
+      return self.mag <= other.mag
+    } else {
+      return self.mag >= other.mag
+    }
+  }
+
+  fn lt(self, other: FP16x16) -> bool {
+    if self.sign == false and other.sign == true {
+      return false
+    } else if self.sign == true and other.sign == false {
+      return true
+    } else if self.sign == false and other.sign == false {
+      return self.mag < other.mag
+    } else {
+      return self.mag > other.mag
+    }
+  }
+
+  fn ne(self, other: FP16x16) -> bool {
+    return self.mag != other.mag or self.sign != other.sign
+  }
+
   // fn log2(self) -> Self {
   //   assert self.sign == false // log2 is only defined for positive numbers
 
@@ -86,43 +213,21 @@ impl FixedTrait for FP16x16 {
   // }
 }
 
+pub fn u32_wide_mul(_ a: u32, _ b: u32) -> u64{
+    let first: u64 = a;
+    let second: u64 = b;
+    let result: u64 = a * b;
+    return result;
+}
 
-// impl FixedTrait for FP16x16 {
-//     fn new(mag: u32, sign: bool) -> Self {
-//         FP16x16 {
-//             mag: mag,
-//             sign: sign
-//         }
-//     }
-//     fn abs(self) -> Self {
-//         FP16x16 {
-//             mag: self.mag,
-//             sign: true
-//         }
-//     }
-
-//     fn floor(self) -> Self {
-//         FP16x16 {
-//             mag: self.mag & 0xFFFF0000,
-//             sign: self.sign
-//         }
-//     }
-
-//     fn ceil(self) -> Self {
-//         FP16x16 {
-//             mag: self.mag & 0xFFFF0000,
-//             sign: self.sign
-//         }
-//     }
-
-//     fn round(self) -> Self {
-//         FP16x16 {
-//             mag: self.mag & 0xFFFF0000,
-//             sign: self.sign
-//         }
-//     }
-// }
-
-pub fn u32_divmod(a: u32, b: u32) -> (u32, u32) {
+pub fn u32_divmod(_ a: u32, _ b: u32) -> (u32, u32) {
     return (a / b, a % b)
+}
+
+pub fn xor(_ a: bool, _ b: bool) -> bool {
+    if a == b {
+        return true;
+    } else {
+        return false;
+    }
 }
