@@ -1,5 +1,7 @@
 // use utils::xor
 
+// use math::u32_wide_mul
+
 // Fixed point 16.16
 // 16 bits for the integer part, 16 bits for the fractional part
 // 1 bit for the sign
@@ -43,9 +45,13 @@ pub trait FixedTrait {
 
     fn rem(self, other: Self) -> Self;
 
+    fn exp2(self) -> Self;
+    fn exp(self) -> Self;
+    fn log2(self) -> Self;
+    fn log10(self) -> Self;
+    fn ln(self) -> Self;
     fn sqrt(self) -> Self;
-    // fn exp(self) -> Self;
-    // fn log2(self) -> Self;
+    fn pow(self, other: Self) -> Self;
 }
 
 impl FixedTrait for FP16x16 {
@@ -101,6 +107,9 @@ impl FixedTrait for FP16x16 {
   }
 
   fn negate(self) -> Self {
+    if self.mag == 0 {
+      return FP16x16(mag: 0, sign: false)
+    }
     return FP16x16(mag: self.mag, sign: not self.sign)
   }
 
@@ -109,46 +118,25 @@ impl FixedTrait for FP16x16 {
   }
 
   fn mul(self, _ other: FP16x16) -> Self {
-    // let res: u64 = u32_wide_mul(self.mag, other.mag)
-    let first : u32 = self.mag / ONE
+    let first: u128 = u32_wide_mul(self.mag, other.mag)
+    let result : u32 = u32(first / u128(ONE))
+    let sign: bool = mul_sign(self.sign, other.sign)
+
+    return FP16x16(mag: result, sign: sign)
+  }  
+
+  fn div(self, _ other: FP16x16) -> FP16x16 {
     // Use wide mul for better precision
-    let res: u32 = first * other.mag
-    let sign: bool = xor(self.sign, other.sign)
+    let a: u128 = u32_wide_mul(self.mag, ONE);
 
-    return FP16x16(mag: res, sign: sign)
-  }
+    let result: u128 = a / u128(other.mag)
 
-  // fn mul(self, other: FP16x16) -> {
-  //   // Make sure that the result is not too big
-  //   assert self.mag < MAX
-  //   assert other.mag < MAX
+    // let first : u32 = self.mag / ONE
+    // // Use wide mul for better precision
+    // let res: u32 = first / other.mag
+    let sign: bool = mul_sign(self.sign, other.sign)
 
-  //   let (a, b) = u32_divmod(self.mag, ONE)
-  //   let (c, d) = u32_divmod(other.mag, ONE)
-
-  //   let ac = a * c
-  //   let ad = a * d
-  //   let bc = b * c
-  //   let bd = b * d
-
-  //   let adbc = ad + bc
-  //   let adbc_shifted = adbc >> 16
-  //   let adbc_shifted = adbc_shifted + HALF 
-  //   let adbc_shifted = adbc_shifted >> 16
-
-  //   let result = ac + adbc_shifted
-
-  //   return FP16x16(mag: result, sign: self.sign ^ other.sign)
-  // }
-
-  fn div(self, other: FP16x16) -> FP16x16 {
-    // Use wide mul for better precision
-    let first : u32 = self.mag / ONE
-    // Use wide mul for better precision
-    let res: u32 = first / other.mag
-    let sign: bool = xor(self.sign, other.sign)
-
-    return FP16x16(mag: res, sign: sign)
+    return FP16x16(mag: u32(result), sign: sign)
   }
 
   fn eq(self, other: FP16x16) -> bool {
@@ -216,6 +204,80 @@ impl FixedTrait for FP16x16 {
     return FP16x16(mag: b, sign: self.sign)
   }
 
+  // Calculates the binary exponent of x: 2^x
+  fn exp2(self) -> Self{
+    if (self.mag == 0) {
+        return FP16x16(mag: ONE, sign: false)
+    }
+    if (self.mag == ONE) {
+        return FP16x16(mag: TWO, sign: false)
+    }
+    let (int_part, frac_part): (u32, u32) = u32_divmod(self.mag, ONE)
+
+    let int_res: u32 = 2**int_part
+    let mut res_u: FP16x16 = FP16x16::new_unscaled(mag: int_res, sign: false)
+
+    if frac_part != 0 {
+        let frac: FP16x16 = FP16x16::new(mag: frac_part, sign: false);
+        let r7: FP16x16 = FP16x16::new(mag: 1, sign: false).mul(frac);
+        let r6: FP16x16 = (r7.add(FP16x16::new(mag: 10, sign: false))).mul(frac);
+        let r5: FP16x16 = (r6.add(FP16x16::new(mag: 87, sign: false))).mul(frac);
+        let r4: FP16x16 = (r5.add(FP16x16::new(mag: 630, sign: false))).mul(frac);
+        let r3: FP16x16 = (r4.add(FP16x16::new(mag: 3638, sign: false))).mul(frac);
+        let r2: FP16x16 = (r3.add(FP16x16::new(mag: 15743, sign: false))).mul(frac);
+        let r1: FP16x16 = (r2.add(FP16x16::new(mag: 45426, sign: false))).mul(frac);
+        res_u = res_u.mul(r1.add(FP16x16::new(mag: ONE, sign: false)));
+    }
+    return res_u
+  }
+
+  // Calculates the natural exponent of x: e^x
+  fn exp(self) -> Self{
+    return (FP16x16::new(mag: 94548, sign: false).mul(self)).exp2(); // log2(e) * 2^23 ≈ 12102203
+  }
+
+  // Calculates the binary logarithm of x: log2(x)
+  // self must be greather than zero
+  fn log2(self) -> Self {
+    assert self.sign == false // log2 is only defined for positive numbers
+
+    if self.mag == ONE {
+      return FP16x16(mag: 0, sign: false)
+    } else if self.mag < ONE {
+      let div: FP16x16 = FP16x16::new(mag: ONE, sign: false).div(self)
+      return div.log2().negate()
+    }
+    let whole: u32 = self.mag / ONE;
+    let (msb_, div): (u32, u32) = msb(whole)
+
+    if self.mag == div * ONE {
+      return FP16x16::new_unscaled(mag: msb_, sign: false)
+    } else {
+      let norm: FP16x16 = self.div(FP16x16::new_unscaled(mag: div, sign: false));
+      let r8: FP16x16 = FP16x16::new(mag: 596, sign: true).mul(norm);
+      let r7: FP16x16 = (r8.add(FP16x16::new(mag: 8116, sign: false))).mul(norm);
+      let r6: FP16x16 = (r7.add(FP16x16::new(mag: 49044, sign: true))).mul(norm);
+      let r5: FP16x16 = (r6.add(FP16x16::new(mag: 172935, sign: false))).mul(norm);
+      let r4: FP16x16 = (r5.add(FP16x16::new(mag: 394096, sign: true))).mul(norm);
+      let r3: FP16x16 = (r4.add(FP16x16::new(mag: 608566, sign: false))).mul(norm);
+      let r2: FP16x16 = (r3.add(FP16x16::new(mag: 655828, sign: true))).mul(norm);
+      let r1: FP16x16 = (r2.add(FP16x16::new(mag: 534433, sign: false))).mul(norm);
+      return r1.add(FP16x16::new(mag: 224487, sign: true)).add(FP16x16::new_unscaled(mag: msb_, sign: false));
+    }
+  }
+
+  // Calculates the base 10 log of x: log10(x)
+  // self must be greater than zero
+  fn log10(self) -> Self{
+    return FP16x16::new(mag: 19728, sign: false).mul(self.log2()); // log10(2) = 0.301...
+  }
+
+  // Calculates the natural logarithm of x: ln(x)
+  // self must be greater than zero
+  fn ln(self) -> Self{
+    return FP16x16::new(mag: 45426, sign: false).mul(self.log2()); // ln(2) = 0.693...
+  }
+
   // Calculates the square root of a FP16x16 point value
   // self must be positive
   fn sqrt(self) -> FP16x16{
@@ -268,6 +330,59 @@ impl FixedTrait for FP16x16 {
     }
   }
 
+  // Calculates the power of a FP16x16 point value
+
+  fn pow(self, other: FP16x16) -> FP16x16 {
+    assert self.sign == false // pow is only defined for positive numbers
+
+    if self.mag == ONE {
+      return FP16x16(mag: ONE, sign: false)
+    } else if self.mag < ONE {
+      let mut res: u32 = 0
+      let mut rem: u32 = self.mag
+      let mut bit: u32 = ONE << 30 // The second-to-top bit is set: 1 << 30 for 32 bits
+
+      // "bit" starts at the highest power of four <= the argument.
+      while bit > rem {
+        bit = bit >> 2
+      }
+
+      while bit != 0 {
+        if rem >= res + bit {
+          rem = rem - (res + bit)
+          res = (res >> 1) + bit
+        } else {
+          res = res >> 1
+        }
+        bit = bit >> 2
+      }
+
+      return FP16x16(mag: res, sign: false)
+    } else {
+      let mut res: u32 = 0
+      let mut rem: u32 = self.mag
+      let mut bit: u32 = ONE << 30 // The second-to-top bit is set: 1 << 30 for 32 bits
+
+      // "bit" starts at the highest power of four <= the argument.
+      while bit > rem {
+        bit = bit >> 2
+      }
+
+      while bit != 0 {
+        if rem >= res + bit {
+          rem = rem - (res + bit)
+          res = (res >> 1) + bit
+        } else {
+          res = res >> 1
+        }
+        bit = bit >> 2
+      }
+
+      return FP16x16(mag: res, sign: false)
+    }
+
+  }
+
   // fn log2(self) -> Self {
   //   assert self.sign == false // log2 is only defined for positive numbers
 
@@ -278,14 +393,14 @@ impl FixedTrait for FP16x16 {
   //   }
   // }
 }
+// HELPER Functions
+//-------------------------------------------------------------------------
 
-pub fn u32_wide_mul(_ a: u32, _ b: u32) -> u64{
-    let first: u64 = a;
-    let second: u64 = b;
-    let result: u64 = a * b;
-    return result;
+
+pub fn u32_wide_mul(_ a: u32, _ b: u32) -> u128{
+    return u128(a) * u128(b)
+
 }
-
 pub fn u32_divmod(_ a: u32, _ b: u32) -> (u32, u32) {
     return (a / b, a % b)
 }
@@ -296,4 +411,69 @@ pub fn xor(_ a: bool, _ b: bool) -> bool {
     } else {
         return false;
     }
+}
+
+pub fn mul_sign(_ a: bool, _ b: bool) -> bool{
+    if a == b {
+        return false;
+    } else {
+        return true;
+    }
+}
+
+// Calculates the most significant bit
+pub fn msb(_ whole: u32) -> (u32, u32) {
+    if whole < 256 {
+        if whole < 2 {
+            return (0, 1);
+        }
+        if whole < 4 {
+            return (1, 2);
+        }
+        if whole < 8 {
+            return (2, 4);
+        }
+        if whole < 16 {
+            return (3, 8);
+        }
+        if whole < 32 {
+            return (4, 16);
+        }
+        if whole < 64 {
+            return (5, 32);
+        }
+        if whole < 128 {
+            return (6, 64);
+        }
+        if whole < 256 {
+            return (7, 128);
+        }
+    } else if whole < 65536 {
+        if whole < 512 {
+            return (8, 256);
+        }
+        if whole < 1024 {
+            return (9, 512);
+        }
+        if whole < 2048 {
+            return (10, 1024);
+        }
+        if whole < 4096 {
+            return (11, 2048);
+        }
+        if whole < 8192 {
+            return (12, 4096);
+        }
+        if whole < 16384 {
+            return (13, 8192);
+        }
+        if whole < 32768 {
+            return (14, 16384);
+        }
+        if whole < 65536 {
+            return (15, 32768);
+        }
+    }
+
+    return (16, 65536);
 }
