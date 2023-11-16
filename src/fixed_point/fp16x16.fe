@@ -50,6 +50,7 @@ pub trait FixedTrait {
     fn log2(self) -> Self;
     fn log10(self) -> Self;
     fn ln(self) -> Self;
+    fn pow_int(self, b: u32, sign: bool) -> Self;
     fn sqrt(self) -> Self;
     fn pow(self, other: Self) -> Self;
 }
@@ -278,120 +279,64 @@ impl FixedTrait for FP16x16 {
     return FP16x16::new(mag: 45426, sign: false).mul(self.log2()); // ln(2) = 0.693...
   }
 
+  // Calclates the value of a^b and checks for overflow before returning
+  fn pow_int(self,_ b: u32,_ sign: bool) -> Self{
+    let mut x: FP16x16 = self;
+    let mut n: u32 = b;
+
+    if sign == true {
+        x = FP16x16::new(mag: ONE, sign: false).div(x);
+    }
+
+    if n == 0 {
+        return FP16x16::new(mag: ONE, sign: false);
+    }
+
+    let mut y: FP16x16 = FP16x16::new(mag: ONE, sign: false);
+    let two: u32 = 2;
+
+    while true {
+      if n <= 1 {
+          break;
+      }
+      let (div, rem): (u32, u32) = u32_divmod(n, two);
+
+      if rem == 1 {
+          y = x.mul(y);
+      }
+
+      x = x.mul(FP16x16::new(mag: x.mag, sign: x.sign));
+      n = div;
+    }
+
+    return x.mul(y);
+
+  }
+
+  // Calclates the value of x^y and checks for overflow before returning
+  // self is a FP16x16 point value
+  // b is a FP16x16 point value
+  fn pow(self,_ other: Self) -> Self{
+    let (div, rem): (u32, u32) = u32_divmod(other.mag, ONE);
+
+    // use the more performant integer pow when y is an int
+    if rem == 0 {
+        return self.pow_int(other.mag / ONE, other.sign);
+    }
+
+    // x^y = exp(y*ln(x)) for x > 0 will error for x < 0
+    return self.ln().mul(other).exp();
+  }
+
+
   // Calculates the square root of a FP16x16 point value
   // self must be positive
   fn sqrt(self) -> FP16x16{
     assert self.sign == false // sqrt is only defined for positive numbers
 
-    if self.mag == ONE {
-      return FP16x16(mag: ONE, sign: false)
-    } else if self.mag < ONE {
-      let mut res: u32 = 0
-      let mut rem: u32 = self.mag
-      let mut bit: u32 = ONE << 30 // The second-to-top bit is set: 1 << 30 for 32 bits
-
-      // "bit" starts at the highest power of four <= the argument.
-      while bit > rem {
-        bit = bit >> 2
-      }
-
-      while bit != 0 {
-        if rem >= res + bit {
-          rem = rem - (res + bit)
-          res = (res >> 1) + bit
-        } else {
-          res = res >> 1
-        }
-        bit = bit >> 2
-      }
-
-      return FP16x16(mag: res, sign: false)
-    } else {
-      let mut res: u32 = 0
-      let mut rem: u32 = self.mag
-      let mut bit: u32 = ONE << 30 // The second-to-top bit is set: 1 << 30 for 32 bits
-
-      // "bit" starts at the highest power of four <= the argument.
-      while bit > rem {
-        bit = bit >> 2
-      }
-
-      while bit != 0 {
-        if rem >= res + bit {
-          rem = rem - (res + bit)
-          res = (res >> 1) + bit
-        } else {
-          res = res >> 1
-        }
-        bit = bit >> 2
-      }
-
-      return FP16x16(mag: res, sign: false)
-    }
+    let root: u32 = u32(int_sqrt_u64(self.mag * ONE))
+    return FP16x16(mag: root, sign: false)
   }
-
-  // Calculates the power of a FP16x16 point value
-
-  fn pow(self, other: FP16x16) -> FP16x16 {
-    assert self.sign == false // pow is only defined for positive numbers
-
-    if self.mag == ONE {
-      return FP16x16(mag: ONE, sign: false)
-    } else if self.mag < ONE {
-      let mut res: u32 = 0
-      let mut rem: u32 = self.mag
-      let mut bit: u32 = ONE << 30 // The second-to-top bit is set: 1 << 30 for 32 bits
-
-      // "bit" starts at the highest power of four <= the argument.
-      while bit > rem {
-        bit = bit >> 2
-      }
-
-      while bit != 0 {
-        if rem >= res + bit {
-          rem = rem - (res + bit)
-          res = (res >> 1) + bit
-        } else {
-          res = res >> 1
-        }
-        bit = bit >> 2
-      }
-
-      return FP16x16(mag: res, sign: false)
-    } else {
-      let mut res: u32 = 0
-      let mut rem: u32 = self.mag
-      let mut bit: u32 = ONE << 30 // The second-to-top bit is set: 1 << 30 for 32 bits
-
-      // "bit" starts at the highest power of four <= the argument.
-      while bit > rem {
-        bit = bit >> 2
-      }
-
-      while bit != 0 {
-        if rem >= res + bit {
-          rem = rem - (res + bit)
-          res = (res >> 1) + bit
-        } else {
-          res = res >> 1
-        }
-        bit = bit >> 2
-      }
-
-      return FP16x16(mag: res, sign: false)
-    }
-
-  }
-
-  // fn log2(self) -> Self {
-  //   assert self.sign == false // log2 is only defined for positive numbers
-
-  //   if self.mag == ONE {
-  //     return FP16x16(mag: 0, sign: false)
-  //   } else if self.mag < ONE {
-
-  //   }
-  // }
 }
 // HELPER Functions
 //-------------------------------------------------------------------------
@@ -476,4 +421,28 @@ pub fn msb(_ whole: u32) -> (u32, u32) {
     }
 
     return (16, 65536);
+}
+
+pub fn int_sqrt_u64(_ n: u64) -> u64 {
+    if n < 2 {
+        return n;
+    }
+
+    let mut low: u64 = 1;
+    let mut high: u64 = n / 2;
+
+    while low <= high {
+        let mid: u64 = low + (high - low) / 2;
+        let square: u64 = mid * mid;
+
+        if square == n {
+            return mid;
+        } else if square < n {
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+
+    return high
 }
