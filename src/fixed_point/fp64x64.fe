@@ -1,0 +1,504 @@
+// Fixed point 64.64
+// 64 bits for the integer part, 64 bits for the fractional part
+// 1 bit for the sign
+// 
+
+pub struct FP64x64 {
+    pub mag: u128
+    pub sign: bool
+}
+
+const TWO: u128 = 36893488147419103232 // 2 ** 17
+const ONE: u128 = 18446744073709551616 // 2 ** 64
+const HALF: u128 = 9223372036854775808 // 2 ** 15
+const MAX: u128 = 170141183460469231731687303715884105728 // 2 ** 127
+
+pub trait FixedTrait {
+    fn new(mag: u128, sign: bool) -> Self;
+    fn new_unscaled(mag: u128, sign: bool) -> Self;
+    fn one() -> Self;
+    fn convert_to_u128(self) -> u128;
+    fn abs(self) -> Self;
+    fn floor(self) -> Self;
+    fn ceil(self) -> Self;
+    fn round(self) -> Self;
+    fn sign(self) -> bool;
+    fn negate(self) -> Self;
+
+    fn add(self, other: Self) -> Self;
+    fn sub(self, other: Self) -> Self;
+    fn mul(self, other: Self) -> Self;
+    fn div(self, other: Self) -> Self;
+
+    fn eq(self, other: Self) -> bool;
+    fn ge(self, other: Self) -> bool;
+    fn gt(self, other: Self) -> bool;
+    fn le(self, other: Self) -> bool;
+    fn lt(self, other: Self) -> bool;
+    fn ne(self, other: Self) -> bool;
+
+    fn rem(self, other: Self) -> Self;
+
+    fn exp2(self) -> Self;
+    fn exp(self) -> Self;
+    fn log2(self) -> Self;
+    fn log10(self) -> Self;
+    // fn ln(self) -> Self;
+    // fn pow_int(self, b: u128, sign: bool) -> Self;
+    // fn sqrt(self) -> Self;
+    // fn pow(self, other: Self) -> Self;
+}
+
+impl FixedTrait for FP64x64 {
+    fn new(mag: u128, sign: bool) -> Self {
+        return FP64x64(mag: mag, sign: sign)
+    }
+    fn new_unscaled(mag: u128, sign: bool) -> Self {
+        return FP64x64(mag: mag << 64, sign: sign)
+    }
+    fn one() -> Self {
+        return FP64x64(mag: ONE, sign: false)
+    }
+    fn convert_to_u128(self) -> u128 {
+        return self.mag >> 64
+    }
+    fn abs(self) -> Self {
+        return FP64x64(mag: self.mag, sign: true)
+    }
+
+    // You will get floor to the nearest integer
+    fn floor(self) -> Self {
+        if self.sign {
+        return FP64x64(mag: self.mag & 0xFFFFFFFFFFFFFFFF0000000000000000 + ONE, sign: self.sign)
+        } else {
+        return FP64x64(mag: self.mag & 0xFFFFFFFFFFFFFFFF0000000000000000, sign: self.sign)
+        }
+    }
+    fn ceil(self) -> Self {
+        if self.sign {
+        return FP64x64(mag: self.mag & 0xFFFFFFFFFFFFFFFF0000000000000000, sign: self.sign)
+        } else {
+        return FP64x64(mag: self.mag & 0xFFFFFFFFFFFFFFFF0000000000000000 + ONE, sign: self.sign)
+        }
+    }
+    fn round(self) -> Self {
+        let value: u128 = self.mag & 0x00000000000000008000000000000000
+        if value == 0{
+        return FP64x64(mag: self.mag & 0xFFFFFFFFFFFFFFFF0000000000000000, sign: self.sign)
+        } else {
+        return FP64x64(mag: self.mag & 0xFFFFFFFFFFFFFFFF0000000000000000 + ONE, sign: self.sign)
+        }
+    }
+
+    fn negate(self) -> Self {
+        if self.mag == 0 {
+        return FP64x64(mag: 0, sign: false)
+        }
+        return FP64x64(mag: self.mag, sign: not self.sign)
+    }
+
+    fn sign(self) -> bool {
+        return self.sign
+    }
+
+
+  fn eq(self, other: FP64x64) -> bool {
+    return self.mag == other.mag and self.sign == other.sign
+  }
+
+  fn ge(self, other: FP64x64) -> bool {
+    if self.sign == false and other.sign == true {
+      return true
+    } else if self.sign == true and other.sign == false {
+      return false
+    } else if self.sign == false and other.sign == false {
+      return self.mag >= other.mag
+    } else {
+      return self.mag <= other.mag
+    }
+  }
+
+  fn gt(self, other: FP64x64) -> bool {
+    if self.sign == false and other.sign == true {
+      return true
+    } else if self.sign == true and other.sign == false {
+      return false
+    } else if self.sign == false and other.sign == false {
+      return self.mag > other.mag
+    } else {
+      return self.mag < other.mag
+    }
+  }
+
+  fn le(self, other: FP64x64) -> bool {
+    if self.sign == false and other.sign == true {
+      return false
+    } else if self.sign == true and other.sign == false {
+      return true
+    } else if self.sign == false and other.sign == false {
+      return self.mag <= other.mag
+    } else {
+      return self.mag >= other.mag
+    }
+  }
+
+  fn lt(self, other: FP64x64) -> bool {
+    if self.sign == false and other.sign == true {
+      return false
+    } else if self.sign == true and other.sign == false {
+      return true
+    } else if self.sign == false and other.sign == false {
+      return self.mag < other.mag
+    } else {
+      return self.mag > other.mag
+    }
+  }
+
+  fn ne(self, other: FP64x64) -> bool {
+    return self.mag != other.mag or self.sign != other.sign
+  }
+
+  fn rem(self, other: FP64x64) -> FP64x64 {
+    let (a, b): (u128, u128) = u128_divmod(self.mag, other.mag)
+    return FP64x64(mag: b, sign: self.sign)
+  }
+
+  fn add(self, _ other: FP64x64) -> Self {
+    if self.sign == other.sign {
+      return FP64x64(mag: self.mag + other.mag, sign: self.sign)
+    } else {
+      if self.mag > other.mag {
+        return FP64x64(mag: self.mag - other.mag, sign: self.sign)
+      } else {
+        return FP64x64(mag: other.mag - self.mag, sign: other.sign)
+      }
+    }
+  }
+
+  fn sub(self, _ other: FP64x64) -> Self {
+    return self.add(other.negate())
+  }
+
+  fn mul(self, _ other: FP64x64) -> Self {
+    let first: u256 = u128_wide_mul(self.mag, other.mag)
+    let result : u128 = u128(first / u256(ONE))
+    let sign: bool = mul_sign(self.sign, other.sign)
+
+    return FP64x64(mag: result, sign: sign)
+  }  
+
+  fn div(self, _ other: FP64x64) -> FP64x64 {
+    // Use wide mul for better precision
+    let a: u256 = u128_wide_mul(self.mag, ONE);
+
+    let result: u256 = a / u256(other.mag)
+
+    // let first : u128 = self.mag / ONE
+    // // Use wide mul for better precision
+    // let res: u128 = first / other.mag
+    let sign: bool = mul_sign(self.sign, other.sign)
+
+    return FP64x64(mag: u128(result), sign: sign)
+  }
+
+    // Calculates the binary exponent of x: 2^x
+  fn exp2(self) -> Self{
+    if (self.mag == 0) {
+        return FP64x64(mag: ONE, sign: false)
+    }
+    if (self.mag == ONE) {
+        return FP64x64(mag: TWO, sign: false)
+    }
+    let (int_part, frac_part): (u128, u128) = u128_divmod(self.mag, ONE)
+
+    let int_res: u128 = 2**int_part
+    let mut res_u: FP64x64 = FP64x64::new_unscaled(mag: int_res, sign: false)
+
+    if frac_part != 0 {
+        let frac: FP64x64 = FP64x64::new(mag: frac_part, sign: false);
+        let r8: FP64x64 = FP64x64::new(mag: 9707, sign: false).mul(frac);
+        let r7: FP64x64 = (r8.add(FP64x64::new(mag: 53974, sign: false))).mul(frac);
+        let r6: FP64x64 = (r7.add(FP64x64::new(mag: 677974, sign: false))).mul(frac);
+        let r5: FP64x64 = (r6.add(FP64x64::new(mag: 5713580, sign: false))).mul(frac);
+        let r4: FP64x64 = (r5.add(FP64x64::new(mag: 41315679, sign: false))).mul(frac);
+        let r3: FP64x64 = (r4.add(FP64x64::new(mag: 238386709, sign: false))).mul(frac);
+        let r2: FP64x64 = (r3.add(FP64x64::new(mag: 1031765214, sign: false))).mul(frac);
+        let r1: FP64x64 = (r2.add(FP64x64::new(mag: 2977044459, sign: false))).mul(frac);
+        res_u = res_u.mul(r1.add(FP64x64::new(mag: ONE, sign: false)));
+    }
+    return res_u
+  }
+
+  // Calculates the natural exponent of x: e^x
+  fn exp(self) -> Self{
+    return (FP64x64::new(mag: 94548, sign: false).mul(self)).exp2(); // log2(e) * 2^23 ≈ 12102203
+  }
+
+  // Calculates the binary logarithm of x: log2(x)
+  // self must be greather than zero
+  fn log2(self) -> Self {
+    assert self.sign == false // log2 is only defined for positive numbers
+
+    if self.mag == ONE {
+      return FP64x64(mag: 0, sign: false)
+    } else if self.mag < ONE {
+      let div: FP64x64 = FP64x64::new(mag: ONE, sign: false).div(self)
+      return div.log2().negate()
+    }
+    let whole: u128 = self.mag / ONE;
+    let (msb_, div): (u128, u128) = msb(whole)
+
+    if self.mag == div * ONE {
+      return FP64x64::new_unscaled(mag: msb_, sign: false)
+    } else {
+      let norm: FP64x64 = self.div(FP64x64::new_unscaled(mag: div, sign: false));
+      let r8: FP64x64 = FP64x64::new(mag: 39036580, sign: true).mul(norm);
+      let r7: FP64x64 = (r8.add(FP64x64::new(mag: 531913440, sign: false))).mul(norm);
+      let r6: FP64x64 = (r7.add(FP64x64::new(mag: 3214171660, sign: true))).mul(norm);
+      let r5: FP64x64 = (r6.add(FP64x64::new(mag: 11333450393, sign: false))).mul(norm);
+      let r4: FP64x64 = (r5.add(FP64x64::new(mag: 25827501665, sign: true))).mul(norm);
+      let r3: FP64x64 = (r4.add(FP64x64::new(mag: 39883002199, sign: false))).mul(norm);
+      let r2: FP64x64 = (r3.add(FP64x64::new(mag: 42980322874, sign: true))).mul(norm);
+      let r1: FP64x64 = (r2.add(FP64x64::new(mag: 35024618493, sign: false))).mul(norm);
+      return r1.add(FP64x64::new(mag: 14711951564, sign: true)).add(FP64x64::new_unscaled(mag: msb_, sign: false));
+    }
+  }
+
+  // Calculates the base 10 log of x: log10(x)
+  // self must be greater than zero
+  fn log10(self) -> Self{
+    return FP64x64::new(mag: 1292913986, sign: false).mul(self.log2()); // log10(2) = 0.301...
+  }
+
+
+
+}
+
+// HELPER Functions
+//-------------------------------------------------------------------------
+
+pub fn u128_wide_mul(_ a: u128, _ b: u128) -> u256{
+    return u256(a) * u256(b)
+
+}
+pub fn u128_divmod(_ a: u128, _ b: u128) -> (u128, u128) {
+    return (a / b, a % b)
+}
+
+pub fn xor(_ a: bool, _ b: bool) -> bool {
+    if a == b {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+pub fn mul_sign(_ a: bool, _ b: bool) -> bool{
+    if a == b {
+        return false;
+    } else {
+        return true;
+    }
+}
+
+// Calculates the most significant bit
+fn msb(whole: u128) -> (u128, u128) {
+    if whole < 256 {
+        if whole < 2 {
+            return (0, 1);
+        }
+        if whole < 4 {
+            return (1, 2);
+        }
+        if whole < 8 {
+            return (2, 4);
+        }
+        if whole < 16 {
+            return (3, 8);
+        }
+        if whole < 32 {
+            return (4, 16);
+        }
+        if whole < 64 {
+            return (5, 32);
+        }
+        if whole < 128 {
+            return (6, 64);
+        }
+        if whole < 256 {
+            return (7, 128);
+        }
+    } else if whole < 65536 {
+        if whole < 512 {
+            return (8, 256);
+        }
+        if whole < 1024 {
+            return (9, 512);
+        }
+        if whole < 2048 {
+            return (10, 1024);
+        }
+        if whole < 4096 {
+            return (11, 2048);
+        }
+        if whole < 8192 {
+            return (12, 4096);
+        }
+        if whole < 16384 {
+            return (13, 8192);
+        }
+        if whole < 32768 {
+            return (14, 16384);
+        }
+        if whole < 65536 {
+            return (15, 32768);
+        }
+    } else if whole < 16777216 {
+        if whole < 131072 {
+            return (16, 65536);
+        }
+        if whole < 262144 {
+            return (17, 131072);
+        }
+        if whole < 524288 {
+            return (18, 262144);
+        }
+        if whole < 1048576 {
+            return (19, 524288);
+        }
+        if whole < 2097152 {
+            return (20, 1048576);
+        }
+        if whole < 4194304 {
+            return (21, 2097152);
+        }
+        if whole < 8388608 {
+            return (22, 4194304);
+        }
+        if whole < 16777216 {
+            return (23, 8388608);
+        }
+    } else if whole < 4294967296 {
+        if whole < 33554432 {
+            return (24, 16777216);
+        }
+        if whole < 67108864 {
+            return (25, 33554432);
+        }
+        if whole < 134217728 {
+            return (26, 67108864);
+        }
+        if whole < 268435456 {
+            return (27, 134217728);
+        }
+        if whole < 536870912 {
+            return (28, 268435456);
+        }
+        if whole < 1073741824 {
+            return (29, 536870912);
+        }
+        if whole < 2147483648 {
+            return (30, 1073741824);
+        }
+        if whole < 4294967296 {
+            return (31, 2147483648);
+        }
+    }
+
+    return (32, 4294967296);
+}
+
+
+
+
+
+#test
+fn test_FP(){
+    let a: FP64x64 = FP64x64::new(mag:1, sign:true);
+
+    assert a.mag == 1
+    assert a.sign == true
+}
+
+#test
+fn test_FP_new_unscaled(){
+    let a: FP64x64 = FP64x64::new_unscaled(mag:1, sign:false);
+    assert a.mag == ONE 
+    assert a.sign == false
+}
+
+#test 
+fn test_FP_one(){
+    // 1 is 65536 in FP64x64
+    let a: FP64x64 = FP64x64::one();
+    assert a.mag == ONE // 2^16
+    assert a.sign == false
+}
+
+#test 
+fn test_convert_to_u128(){
+    let a: FP64x64 = FP64x64::new(mag: TWO, sign: false);
+    let b: u128 = a.convert_to_u128();
+    assert b == 2
+}
+
+// TODO: test negative numbers floor method
+#test
+fn test_FP_floor(){
+    // let a represent 2.125 in FP64x64 
+    let a: FP64x64 = FP64x64::new(mag: TWO + 5, sign: false);
+    let b: FP64x64 = a.floor();
+    assert b.mag == TWO // 2 in FP64x64
+}
+
+#test
+fn test_FP_add(){
+    // let a represent 2 in FP64x64 
+    let mut a: FP64x64 = FP64x64::new(mag: TWO, sign: false);
+    let mut b: FP64x64 = FP64x64::new(mag: TWO, sign: false);
+    let mut c: FP64x64 = a.add(b);
+    assert c.mag == 2*TWO
+    assert c.sign == false
+    a = FP64x64::new(mag: 139264, sign: true);
+    b = FP64x64::new(mag: 139261, sign: false);
+    c = a.add(b);
+    assert c.mag == 3
+    assert c.sign == true
+    a = FP64x64::new(mag: 139264, sign: false);
+    b = FP64x64::new(mag: 139261, sign: true);
+    c = a.add(b);
+    assert c.mag == 3
+    assert c.sign == false
+}
+
+#test
+fn test_FP_mul(){
+    // let a represent 2 in FP64x64
+    let mut a: FP64x64 = FP64x64::new(mag: TWO, sign: false);
+    let mut b: FP64x64 = FP64x64::new(mag: TWO, sign: false);
+    let mut c: FP64x64 = a.mul(b);
+    assert c.mag == 2*TWO
+    assert c.sign == false
+}
+
+#test
+fn test_FP_div(){
+    // let a represent 2 in FP64x64
+    let mut a: FP64x64 = FP64x64::new(mag: TWO, sign: false);
+    let mut b: FP64x64 = FP64x64::new(mag: TWO, sign: false);
+    let mut c: FP64x64 = a.div(b);
+    assert c.mag == ONE // 1
+    assert c.sign == false
+}
+
+#test
+fn test_FP_exp2() {
+    let a: FP64x64 = FP64x64::new_unscaled(mag:5, sign: false);
+    assert a.exp2().mag == 32*ONE
+}
+
+#test
+fn test_FP_log2() {
+    let mut a: FP64x64 = FP64x64::new_unscaled(mag: 32, sign: false);
+    assert a.log2().mag == FP64x64::new_unscaled(mag: 5, sign: false).mag
+}
