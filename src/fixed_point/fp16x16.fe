@@ -1,7 +1,3 @@
-// use utils::xor
-
-// use math::u32_wide_mul
-
 // Fixed point 16.16
 // 16 bits for the integer part, 16 bits for the fractional part
 // 1 bit for the sign
@@ -445,4 +441,106 @@ pub fn int_sqrt_u64(_ n: u64) -> u64 {
     }
 
     return high
+}
+
+// TESTS
+//-------------------------------------------------------------------------
+
+
+#test
+fn test_FP(){
+    let a: FP16x16 = FP16x16::new(mag:1, sign:true);
+
+    assert a.mag == 1
+    assert a.sign == true
+}
+
+#test
+fn test_FP_new_unscaled(){
+    let a: FP16x16 = FP16x16::new_unscaled(mag:1, sign:false);
+    assert a.mag == 65536 // 2^16
+    assert a.sign == false
+}
+
+#test 
+fn test_FP_one(){
+    // 1 is 65536 in FP16x16
+    let a: FP16x16 = FP16x16::one();
+    assert a.mag == 65536 // 2^16
+    assert a.sign == false
+}
+
+#test 
+fn test_convert_to_u32(){
+    let a: FP16x16 = FP16x16::new(mag: 139264, sign: false);
+    let b: u32 = a.convert_to_u32();
+    assert b == 2
+}
+
+// TODO: test negative numbers floor method
+#test
+fn test_FP_floor(){
+    // let a represent 2.125 in FP16x16 
+    let a: FP16x16 = FP16x16::new(mag: 139264, sign: false);
+    let b: FP16x16 = a.floor();
+    assert b.mag == 131072 // 2 in FP16x16
+}
+
+#test
+fn test_FP_add(){
+    // let a represent 2.125 in FP16x16 
+    let mut a: FP16x16 = FP16x16::new(mag: 139264, sign: false);
+    let mut b: FP16x16 = FP16x16::new(mag: 139264, sign: false);
+    let mut c: FP16x16 = a.add(b);
+    assert c.mag == 278528
+    assert c.sign == false
+    a = FP16x16::new(mag: 139264, sign: true);
+    b = FP16x16::new(mag: 139261, sign: false);
+    c = a.add(b);
+    assert c.mag == 3
+    assert c.sign == true
+    a = FP16x16::new(mag: 139264, sign: false);
+    b = FP16x16::new(mag: 139261, sign: true);
+    c = a.add(b);
+    assert c.mag == 3
+    assert c.sign == false
+}
+
+#test
+fn test_FP_mul(){
+    // let a represent 2 in FP16x16
+    let mut a: FP16x16 = FP16x16::new(mag: 131072, sign: false);
+    let mut b: FP16x16 = FP16x16::new(mag: 131072, sign: false);
+    let mut c: FP16x16 = a.mul(b);
+    assert c.mag == 262144
+    assert c.sign == false
+}
+
+#test
+fn test_FP_div(){
+    // let a represent 2 in FP16x16
+    let mut a: FP16x16 = FP16x16::new(mag: 131072, sign: false);
+    let mut b: FP16x16 = FP16x16::new(mag: 131072, sign: false);
+    let mut c: FP16x16 = a.div(b);
+    assert c.mag == 65536 // 1
+    assert c.sign == false
+}
+
+#test
+fn test_FP_exp2() {
+    let a: FP16x16 = FP16x16::new_unscaled(mag:5, sign: false);
+    assert a.exp2().mag == 2097152
+}
+
+#test
+fn test_FP_log2() {
+    let mut a: FP16x16 = FP16x16::new_unscaled(mag: 32, sign: false);
+    assert a.log2().mag == FP16x16::new_unscaled(mag: 5, sign: false).mag
+}
+
+#test
+fn test_FP_pow() {
+    let a: FP16x16 = FP16x16::new_unscaled(mag: 3, sign: false);
+    let b: FP16x16 = FP16x16::new_unscaled(mag: 4, sign: false);
+    assert a.pow(b).mag == 81 * 65536
 }
