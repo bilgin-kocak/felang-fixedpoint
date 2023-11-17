@@ -43,10 +43,10 @@ pub trait FixedTrait {
     fn exp(self) -> Self;
     fn log2(self) -> Self;
     fn log10(self) -> Self;
-    // fn ln(self) -> Self;
-    // fn pow_int(self, b: u128, sign: bool) -> Self;
-    // fn sqrt(self) -> Self;
-    // fn pow(self, other: Self) -> Self;
+    fn ln(self) -> Self;
+    fn pow_int(self, b: u128, sign: bool) -> Self;
+    fn sqrt(self) -> Self;
+    fn pow(self, other: Self) -> Self;
 }
 
 impl FixedTrait for FP64x64 {
@@ -270,7 +270,67 @@ impl FixedTrait for FP64x64 {
     return FP64x64::new(mag: 1292913986, sign: false).mul(self.log2()); // log10(2) = 0.301...
   }
 
+  // Calculates the natural logarithm of x: ln(x)
+  // self must be greater than zero
+  fn ln(self) -> Self{
+    return FP64x64::new(mag: 2977044472, sign: false).mul(self.log2()); // ln(2) = 0.693...
+  }
 
+  // Calclates the value of a^b and checks for overflow before returning
+  fn pow_int(self,_ b: u128,_ sign: bool) -> Self{
+    let mut x: FP64x64 = self;
+    let mut n: u128 = b;
+
+    if sign == true {
+        x = FP64x64::new(mag: ONE, sign: false).div(x);
+    }
+
+    if n == 0 {
+        return FP64x64::new(mag: ONE, sign: false);
+    }
+
+    let mut y: FP64x64 = FP64x64::new(mag: ONE, sign: false);
+    let two: u128 = 2;
+
+    while true {
+      if n <= 1 {
+          break;
+      }
+      let (div, rem): (u128, u128) = u128_divmod(n, two);
+
+      if rem == 1 {
+          y = x.mul(y);
+      }
+
+      x = x.mul(FP64x64::new(mag: x.mag, sign: x.sign));
+      n = div;
+    }
+    return x.mul(y);
+  }
+  
+  // Calclates the value of x^y and checks for overflow before returning
+  // self is a FP64x64 point value
+  // b is a FP64x64 point value
+  fn pow(self,_ other: Self) -> Self{
+    let (div, rem): (u128, u128) = u128_divmod(other.mag, ONE);
+
+    // use the more performant integer pow when y is an int
+    if rem == 0 {
+        return self.pow_int(other.mag / ONE, other.sign);
+    }
+
+    // x^y = exp(y*ln(x)) for x > 0 will error for x < 0
+    return self.ln().mul(other).exp();
+  }
+
+  // Calculates the square root of a FP64x64 point value
+  // self must be positive
+  fn sqrt(self) -> FP64x64{
+    assert self.sign == false // sqrt is only defined for positive numbers
+
+    let root: u128 = u128(int_sqrt_u256(self.mag * ONE))
+    return FP64x64(mag: root, sign: false)
+  }
 
 }
 
@@ -408,6 +468,30 @@ fn msb(whole: u128) -> (u128, u128) {
     return (32, 4294967296);
 }
 
+pub fn int_sqrt_u256(_ n: u256) -> u256 {
+    if n < 2 {
+        return n;
+    }
+
+    let mut low: u256 = 1;
+    let mut high: u256 = n / 2;
+
+    while low <= high {
+        let mid: u256 = low + (high - low) / 2;
+        let square: u256 = mid * mid;
+
+        if square == n {
+            return mid;
+        } else if square < n {
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+
+    return high
+}
+
 
 
 
@@ -501,4 +585,11 @@ fn test_FP_exp2() {
 fn test_FP_log2() {
     let mut a: FP64x64 = FP64x64::new_unscaled(mag: 32, sign: false);
     assert a.log2().mag == FP64x64::new_unscaled(mag: 5, sign: false).mag
+}
+
+#test
+fn test_FP_pow() {
+    let a: FP64x64 = FP64x64::new_unscaled(mag: 3, sign: false);
+    let b: FP64x64 = FP64x64::new_unscaled(mag: 4, sign: false);
+    assert a.pow(b).mag == 81 * ONE
 }

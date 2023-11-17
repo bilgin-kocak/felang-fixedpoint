@@ -1,0 +1,76 @@
+pub unsafe fn u32_divmod(a: u32, b: u32) -> (u32, u32) {
+    return (a / b, a % b)
+}
+
+pub unsafe fn u32_wide_mul(a: u32, b: u32) -> u64{
+    let first: u64 = a;
+    let second: u64 = b;
+    let result: u64 = a * b;
+    return result;
+}
+
+pub unsafe fn xor(a: bool, b: bool) -> bool {
+    if a == b {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+
+// Calculates the most significant bit
+pub fn msb(_ whole: u32) -> (u32, u32) {
+    if whole < 256 {
+        if whole < 2 {
+            return (0, 1);
+        }
+        if whole < 4 {
+            return (1, 2);
+        }
+        if whole < 8 {
+            return (2, 4);
+        }
+        if whole < 16 {
+            return (3, 8);
+        }
+        if whole < 32 {
+            return (4, 16);
+        }
+        if whole < 64 {
+            return (5, 32);
+        }
+        if whole < 128 {
+            return (6, 64);
+        }
+        if whole < 256 {
+            return (7, 128);
+        }
+    } else if whole < 65536 {
+        if whole < 512 {
+            return (8, 256);
+        }
+        if whole < 1024 {
+            return (9, 512);
+        }
+        if whole < 2048 {
+            return (10, 1024);
+        }
+        if whole < 4096 {
+            return (11, 2048);
+        }
+        if whole < 8192 {
+            return (12, 4096);
+        }
+        if whole < 16384 {
+            return (13, 8192);
+        }
+        if whole < 32768 {
+            return (14, 16384);
+        }
+        if whole < 65536 {
+            return (15, 32768);
+        }
+    }
+
+    return (16, 65536);
+}

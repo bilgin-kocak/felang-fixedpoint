@@ -1,0 +1,18 @@
+pub unsafe fn u32_divmod(a: u32, b: u32) -> (u32, u32) {
+    return (a / b, a % b)
+}
+
+pub unsafe fn u32_wide_mul(a: u32, b: u32) -> u128{
+    let first: u128 = a;
+    let second: u128 = b;
+    let result: u128 = a * b;
+    return result;
+}
+
+pub unsafe fn xor(a: bool, b: bool) -> bool {
+    if a == b {
+        return true;
+    } else {
+        return false;
+    }
+}
