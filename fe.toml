@@ -1,6 +1,6 @@
-name = "math"
+name = "fpmath"
 version = "1.0"
-description = "Math Library for FE Language"
+description = "Fixed Point Representation and Math Library for FE Language"
 homepage = "https://github.com/"
 
 [dependencies]

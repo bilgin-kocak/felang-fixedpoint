@@ -102,11 +102,11 @@ impl FixedTrait for FP64x64 {
     }
 
 
-  fn eq(self, other: FP64x64) -> bool {
+  fn eq(self, _ other: FP64x64) -> bool {
     return self.mag == other.mag and self.sign == other.sign
   }
 
-  fn ge(self, other: FP64x64) -> bool {
+  fn ge(self, _ other: FP64x64) -> bool {
     if self.sign == false and other.sign == true {
       return true
     } else if self.sign == true and other.sign == false {
@@ -118,7 +118,7 @@ impl FixedTrait for FP64x64 {
     }
   }
 
-  fn gt(self, other: FP64x64) -> bool {
+  fn gt(self, _ other: FP64x64) -> bool {
     if self.sign == false and other.sign == true {
       return true
     } else if self.sign == true and other.sign == false {
@@ -130,7 +130,7 @@ impl FixedTrait for FP64x64 {
     }
   }
 
-  fn le(self, other: FP64x64) -> bool {
+  fn le(self, _ other: FP64x64) -> bool {
     if self.sign == false and other.sign == true {
       return false
     } else if self.sign == true and other.sign == false {
@@ -142,7 +142,7 @@ impl FixedTrait for FP64x64 {
     }
   }
 
-  fn lt(self, other: FP64x64) -> bool {
+  fn lt(self, _ other: FP64x64) -> bool {
     if self.sign == false and other.sign == true {
       return false
     } else if self.sign == true and other.sign == false {
@@ -154,11 +154,11 @@ impl FixedTrait for FP64x64 {
     }
   }
 
-  fn ne(self, other: FP64x64) -> bool {
+  fn ne(self, _ other: FP64x64) -> bool {
     return self.mag != other.mag or self.sign != other.sign
   }
 
-  fn rem(self, other: FP64x64) -> FP64x64 {
+  fn rem(self, _ other: FP64x64) -> FP64x64 {
     let (a, b): (u128, u128) = u128_divmod(self.mag, other.mag)
     return FP64x64(mag: b, sign: self.sign)
   }
@@ -533,6 +533,34 @@ fn test_FP_floor(){
     let a: FP64x64 = FP64x64::new(mag: TWO + 5, sign: false);
     let b: FP64x64 = a.floor();
     assert b.mag == TWO // 2 in FP64x64
+}
+
+#test
+fn test_FP_eq(){
+  let a: FP64x64 = FP64x64::new(mag: 139264, sign: false);
+  let b: FP64x64 = FP64x64::new(mag: 139264, sign: false);
+  assert a.eq(b) == true
+}
+
+#test
+fn test_FP_ne(){
+  let a: FP64x64 = FP64x64::new(mag: 139264, sign: false);
+  let b: FP64x64 = FP64x64::new(mag: 123, sign: false);
+  assert a.ne(b) == true
+}
+
+#test
+fn test_FP_gt(){
+  let a: FP64x64 = FP64x64::new(mag: 139264, sign: false);
+  let b: FP64x64 = FP64x64::new(mag: 123, sign: false);
+  assert a.gt(b) == true
+}
+
+#test
+fn test_FP_lt(){
+  let a: FP64x64 = FP64x64::new(mag: 139264, sign: false);
+  let b: FP64x64 = FP64x64::new(mag: 123, sign: true);
+  assert b.lt(a) == true
 }
 
 #test
